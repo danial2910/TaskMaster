@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Management App</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app"></div>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@0.21.1/dist/axios.min.js"></script>
+    <script>
+        new Vue({
+            el: '#app',
+            data: {
+                token: localStorage.getItem('token') || '',
+                username: '',
+                password: '',
+                error: '',
+                tasks: [],
+                newTask: { title: '', description: '', status: 'pending' },
+                editTask: null
+            },
+            methods: {
+                async register() {
+                    try {
+                        await axios.post('/api/auth/register', {
+                            username: this.username,
+                            password: this.password
+                        });
+                        this.error = 'Registration successful. Please login.';
+                    } catch (error) {
+                        this.error = error.response?.data?.error || 'Registration failed';
+                    }
+                },
+                async login() {
+                    try {
+                        const response = await axios.post('/api/auth/login', {
+                            username: this.username,
+                            password: this.password
+                        });
+                        this.token = response.data.token;
+                        localStorage.setItem('token', this.token);
+                        this.error = '';
+                        this.getTasks();
+                    } catch (error) {
+                        this.error = error.response?.data?.error || 'Login failed';
+                    }
+                },
+                async getTasks() {
+                    try {
+                        const response = await axios.get('/api/tasks', {
+                            headers: { Authorization: `Bearer ${this.token}` }
+                        });
+                        this.tasks = response.data;
+                    } catch (error) {
+                        this.error = error.response?.data?.error || 'Failed to fetch tasks';
+                    }
+                },
+                async createTask() {
+                    try {
+                        const response = await axios.post('/api/tasks', this.newTask, {
+                            headers: { Authorization: `Bearer ${this.token}` }
+                        });
+                        this.tasks.push(response.data);
+                        this.newTask = { title: '', description: '', status: 'pending' };
+                    } catch (error) {
+                        this.error = error.response?.data?.error || 'Failed to create task';
+                    }
+                },
+                async updateTask(task) {
+                    try {
+                        const response = await axios.put(`/api/tasks/${task.id}`, task, {
+                            headers: { Authorization: `Bearer ${this.token}` }
+                        });
+                        const index = this.tasks.findIndex(t => t.id === task.id);
+                        this.tasks.splice(index, 1, response.data);
+                        this.editTask = null;
+                    } catch (error) {
+                        this.error = error.response?.data?.error || 'Failed to update task';
+                    }
+                },
+                async deleteTask(id) {
+                    try {
+                        await axios.delete(`/api/tasks/${id}`, {
+                            headers: { Authorization: `Bearer ${this.token}` }
+                        });
+                        this.tasks = this.tasks.filter(t => t.id !== id);
+                    } catch (error) {
+                        this.error = error.response?.data?.error || 'Failed to delete task';
+                    }
+                },
+                async updateTaskStatus(id, status) {
+                    try {
+                        const response = await axios.patch(`/api/tasks/${id}/status`, { status }, {
+                            headers: { Authorization: `Bearer ${this.token}` }
+                        });
+                        const index = this.tasks.findIndex(t => t.id === id);
+                        this.tasks.splice(index, 1, response.data);
+                    } catch (error) {
+                        this.error = error.response?.data?.error || 'Failed to update status';
+                    }
+                }
+            },
+            template: `
+                <div class="container mx-auto p-4">
+                    <h1 class="text-2xl font-bold mb-4">Task Management App</h1>
+                    <div v-if="!token" class="mb-4">
+                        <input v-model="username" placeholder="Username" class="border p-2 mr-2">
+                        <input v-model="password" type="password" placeholder="Password" class="border p-2 mr-2">
+                        <button @click="register" class="bg-blue-500 text-white p-2 rounded mr-2">Register</button>
+                        <button @click="login" class="bg-blue-500 text-white p-2 rounded">Login</button>
+                    </div>
+                    <div v-if="error" class="text-red-500 mb-4">{{ error }}</div>
+                    <div v-if="token">
+                        <div class="mb-4">
+                            <input v-model="newTask.title" placeholder="Task Title" class="border p-2 mr-2">
+                            <input v-model="newTask.description" placeholder="Description" class="border p-2 mr-2">
+                            <select v-model="newTask.status" class="border p-2 mr-2">
+                                <option value="pending">Pending</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                            <button @click="createTask" class="bg-green-500 text-white p-2 rounded">Add Task</button>
+                        </div>
+                        <div v-if="tasks.length">
+                            <h2 class="text-xl mb-2">Tasks</h2>
+                            <ul>
+                                <li v-for="task in tasks" :key="task.id" class="border p-2 mb-2">
+                                    <div v-if="editTask?.id !== task.id">
+                                        <p><strong>{{ task.title }}</strong></p>
+                                        <p>{{ task.description }}</p>
+                                        <p>Status: {{ task.status }}</p>
+                                        <button @click="editTask = { ...task }" class="bg-yellow-500 text-white p-1 rounded mr-2">Edit</button>
+                                        <button @click="deleteTask(task.id)" class="bg-red-500 text-white p-1 rounded mr-2">Delete</button>
+                                        <button @click="updateTaskStatus(task.id, task.status === 'completed' ? 'pending' : 'completed')" 
+                                                class="bg-blue-500 text-white p-1 rounded">
+                                            {{ task.status === 'completed' ? 'Mark Pending' : 'Mark Completed' }}
+                                        </button>
+                                    </div>
+                                    <div v-else>
+                                        <input v-model="editTask.title" placeholder="Task Title" class="border p-2 mr-2">
+                                        <input v-model="editTask.description" placeholder="Description" class="border p-2 mr-2">
+                                        <select v-model="editTask.status" class="border p-2 mr-2">
+                                            <option value="pending">Pending</option>
+                                            <option value="in_progress">In Progress</option>
+                                            <option value="completed">Completed</option>
+                                        </select>
+                                        <button @click="updateTask(editTask)" class="bg-green-500 text-white p-1 rounded mr-2">Save</button>
+                                        <button @click="editTask = null" class="bg-gray-500 text-white p-1 rounded">Cancel</button>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                        <div v-else>No tasks found.</div>
+                    </div>
+                </div>
+            `
+        });
+    </script>
+</body>
+</html>
