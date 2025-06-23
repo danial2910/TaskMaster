@@ -4,18 +4,22 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit3002cd2b64de29347097d4b0bb205446
+class ComposerStaticInit026509606a55be5c56c243e48adc6597
 {
     public static $files = array (
         'a4a119a56e50fbb293281d9a48007e0e' => __DIR__ . '/..' . '/symfony/polyfill-php80/bootstrap.php',
-        '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
         '253c157292f75eb38082b5acb06f3f01' => __DIR__ . '/..' . '/nikic/fast-route/src/functions.php',
+        '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
         '320cde22f66dd4f5d3fd621d3e88b98f' => __DIR__ . '/..' . '/symfony/polyfill-ctype/bootstrap.php',
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
-        'b33e3d135e5d9e47d845c576147bda89' => __DIR__ . '/..' . '/php-di/php-di/src/functions.php',
     );
 
     public static $prefixLengthsPsr4 = array (
+        'T' => 
+        array (
+            'Tuupola\\Middleware\\' => 19,
+            'Tuupola\\Http\\Factory\\' => 21,
+        ),
         'S' => 
         array (
             'Symfony\\Polyfill\\Php80\\' => 23,
@@ -32,13 +36,9 @@ class ComposerStaticInit3002cd2b64de29347097d4b0bb205446
             'Psr\\Container\\' => 14,
             'PhpOption\\' => 10,
         ),
-        'L' => 
+        'N' => 
         array (
-            'Laravel\\SerializableClosure\\' => 28,
-        ),
-        'I' => 
-        array (
-            'Invoker\\' => 8,
+            'Neomerx\\Cors\\' => 13,
         ),
         'G' => 
         array (
@@ -46,18 +46,25 @@ class ComposerStaticInit3002cd2b64de29347097d4b0bb205446
         ),
         'F' => 
         array (
-            'Firebase\\JWT\\' => 13,
             'Fig\\Http\\Message\\' => 17,
             'FastRoute\\' => 10,
         ),
         'D' => 
         array (
             'Dotenv\\' => 7,
-            'DI\\' => 3,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
+        'Tuupola\\Middleware\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/tuupola/cors-middleware/src',
+            1 => __DIR__ . '/..' . '/tuupola/callable-handler/src',
+        ),
+        'Tuupola\\Http\\Factory\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/tuupola/http-factory/src',
+        ),
         'Symfony\\Polyfill\\Php80\\' => 
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-php80',
@@ -84,8 +91,8 @@ class ComposerStaticInit3002cd2b64de29347097d4b0bb205446
         ),
         'Psr\\Http\\Server\\' => 
         array (
-            0 => __DIR__ . '/..' . '/psr/http-server-handler/src',
-            1 => __DIR__ . '/..' . '/psr/http-server-middleware/src',
+            0 => __DIR__ . '/..' . '/psr/http-server-middleware/src',
+            1 => __DIR__ . '/..' . '/psr/http-server-handler/src',
         ),
         'Psr\\Http\\Message\\' => 
         array (
@@ -100,21 +107,13 @@ class ComposerStaticInit3002cd2b64de29347097d4b0bb205446
         array (
             0 => __DIR__ . '/..' . '/phpoption/phpoption/src/PhpOption',
         ),
-        'Laravel\\SerializableClosure\\' => 
+        'Neomerx\\Cors\\' => 
         array (
-            0 => __DIR__ . '/..' . '/laravel/serializable-closure/src',
-        ),
-        'Invoker\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/php-di/invoker/src',
+            0 => __DIR__ . '/..' . '/neomerx/cors-psr7/src',
         ),
         'GrahamCampbell\\ResultType\\' => 
         array (
             0 => __DIR__ . '/..' . '/graham-campbell/result-type/src',
-        ),
-        'Firebase\\JWT\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/firebase/php-jwt/src',
         ),
         'Fig\\Http\\Message\\' => 
         array (
@@ -127,10 +126,6 @@ class ComposerStaticInit3002cd2b64de29347097d4b0bb205446
         'Dotenv\\' => 
         array (
             0 => __DIR__ . '/..' . '/vlucas/phpdotenv/src',
-        ),
-        'DI\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/php-di/php-di/src',
         ),
     );
 
@@ -146,9 +141,9 @@ class ComposerStaticInit3002cd2b64de29347097d4b0bb205446
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit3002cd2b64de29347097d4b0bb205446::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit3002cd2b64de29347097d4b0bb205446::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit3002cd2b64de29347097d4b0bb205446::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit026509606a55be5c56c243e48adc6597::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit026509606a55be5c56c243e48adc6597::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit026509606a55be5c56c243e48adc6597::$classMap;
 
         }, null, ClassLoader::class);
     }

@@ -1,35 +1,91 @@
 <?php
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Factory\AppFactory;
 
-require __DIR__ . '/../../vendor/autoload.php';
+require __DIR__ . '/../vendor/autoload.php';
 
-// Load environment variables
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../..');
-$dotenv->load();
+// Get PDO instance from db.php
+$pdo = require __DIR__ . '/../db.php';
 
-// Initialize Slim app
 $app = AppFactory::create();
 
-// Load dependencies
-require __DIR__ . '/../src/dependencies.php';
+// Add routing middleware FIRST
+$app->addRoutingMiddleware();
 
-// Load routes
-require __DIR__ . '/../src/routes.php';
+// Add error middleware
+$errorMiddleware = $app->addErrorMiddleware(true, true, true);
 
-// Serve frontend
-$app->get('/', function ($request, $response) {
-    $file = __DIR__ . '/../../frontend/index.html';
-    $response->getBody()->write(file_get_contents($file));
-    return $response->withHeader('Content-Type', 'text/html');
-});
-
+// Add CORS headers manually for simplicity
 $app->add(function ($request, $handler) {
     $response = $handler->handle($request);
     return $response
         ->withHeader('Access-Control-Allow-Origin', '*')
-        ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+        ->withHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept, Origin, Authorization')
+        ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+});
+
+// Handle preflight requests
+$app->options('/{routes:.+}', function ($request, $response, $args) {
+    return $response;
+});
+
+// Test route
+$app->get('/', function (Request $request, Response $response) {
+    $response->getBody()->write(json_encode(["message" => "TaskMaster API is working!"]));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+// Register Route
+$app->post('/register', function (Request $request, Response $response) use ($pdo) {
+    $data = $request->getParsedBody();
+    
+    if (!isset($data['username']) || !isset($data['password'])) {
+        $response->getBody()->write(json_encode(["status" => "fail", "message" => "Username and password required"]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+    
+    $username = $data['username'];
+    $password = password_hash($data['password'], PASSWORD_DEFAULT);
+
+    $stmt = $pdo->prepare("INSERT INTO users (username, password) VALUES (?, ?)");
+    try {
+        $stmt->execute([$username, $password]);
+        $response->getBody()->write(json_encode(["status" => "success", "message" => "User registered successfully"]));
+    } catch (PDOException $e) {
+        if ($e->getCode() == 23000) { // Duplicate entry
+            $response->getBody()->write(json_encode(["status" => "fail", "message" => "Username already exists"]));
+        } else {
+            $response->getBody()->write(json_encode(["status" => "fail", "message" => "Registration failed"]));
+        }
+    }
+
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+// Login Route
+$app->post('/login', function (Request $request, Response $response) use ($pdo) {
+    $data = $request->getParsedBody();
+    
+    if (!isset($data['username']) || !isset($data['password'])) {
+        $response->getBody()->write(json_encode(["status" => "fail", "message" => "Username and password required"]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+    
+    $username = $data['username'];
+    $password = $data['password'];
+
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
+
+    if ($user && password_verify($password, $user['password'])) {
+        $response->getBody()->write(json_encode(["status" => "success", "message" => "Login successful"]));
+    } else {
+        $response->getBody()->write(json_encode(["status" => "fail", "message" => "Invalid credentials"]));
+    }
+
+    return $response->withHeader('Content-Type', 'application/json');
 });
 
 $app->run();
-?>
