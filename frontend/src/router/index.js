@@ -1,136 +1,164 @@
+// router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
-import Login from '../components/Login.vue'
-import Register from '../components/Register.vue'
-import Dashboard from '../components/Dashboard.vue'
-import Workspaces from '../components/Workspaces.vue'
-import Projects from '../components/Projects.vue'
-import Tasks from '../components/Tasks.vue'
-import Home from '../components/Home.vue'
+
+// Import components
+import Login from '@/components/Login.vue'
+import Register from '@/components/Register.vue'
+import Dashboard from '@/components/Dashboard.vue'
+import TaskList from '@/components/TaskList.vue'
+import TaskDetail from '@/components/TaskDetail.vue'
+import Profile from '@/components/Profile.vue'
+import NotFound from '@/components/NotFound.vue'
+
+// Auth guard function
+function requireAuth(to, from, next) {
+  const token = localStorage.getItem('token')
+  
+  if (!token) {
+    // No token found, redirect to login
+    next('/login')
+  } else {
+    // Token exists, check if it's valid (optional)
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      const currentTime = Date.now() / 1000
+      
+      if (payload.exp < currentTime) {
+        // Token expired
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        next('/login')
+      } else {
+        // Token is valid
+        next()
+      }
+    } catch (error) {
+      // Invalid token format
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      next('/login')
+    }
+  }
+}
+
+// Guest guard function (for login/register pages)
+function requireGuest(to, from, next) {
+  const token = localStorage.getItem('token')
+  
+  if (token) {
+    // User is already logged in, redirect to dashboard
+    next('/dashboard')
+  } else {
+    next()
+  }
+}
 
 const routes = [
+  // Default route - redirect to dashboard or login
   {
     path: '/',
     name: 'Home',
-    component: Home,
-    meta: { 
-      title: 'TaskMaster - Ultimate Task Management'
+    redirect: () => {
+      const token = localStorage.getItem('token')
+      return token ? '/dashboard' : '/login'
     }
   },
+  
+  // Authentication routes
   {
     path: '/login',
     name: 'Login',
     component: Login,
-    meta: { 
-      title: 'Login - TaskMaster',
-      guest: true 
+    beforeEnter: requireGuest,
+    meta: {
+      title: 'Login - Task Management',
+      hideNavbar: true
     }
   },
   {
     path: '/register',
     name: 'Register',
     component: Register,
-    meta: { 
-      title: 'Register - TaskMaster',
-      guest: true 
+    beforeEnter: requireGuest,
+    meta: {
+      title: 'Register - Task Management',
+      hideNavbar: true
     }
   },
+  
+  // Protected routes (require authentication)
   {
     path: '/dashboard',
     name: 'Dashboard',
     component: Dashboard,
-    meta: { 
-      requiresAuth: true,
-      title: 'Dashboard - TaskMaster'
-    }
-  },
-  {
-    path: '/workspaces',
-    name: 'Workspaces',
-    component: Workspaces,
-    meta: { 
-      requiresAuth: true,
-      title: 'Workspaces - TaskMaster'
-    }
-  },
-  {
-    path: '/workspace/:workspaceId',
-    name: 'WorkspaceDetail',
-    component: Projects,
-    meta: { 
-      requiresAuth: true,
-      title: 'Workspace Projects - TaskMaster'
-    }
-  },
-  {
-    path: '/projects',
-    name: 'Projects',
-    component: Projects,
-    meta: { 
-      requiresAuth: true,
-      title: 'Projects - TaskMaster'
-    }
-  },
-  {
-    path: '/project/:projectId',
-    name: 'ProjectDetail',
-    component: Projects,
-    meta: { 
-      requiresAuth: true,
-      title: 'Project Details - TaskMaster'
-    }
-  },
-  {
-    path: '/project/:projectId/tasks',
-    name: 'ProjectTasks',
-    component: Tasks,
-    meta: { 
-      requiresAuth: true,
-      title: 'Project Tasks - TaskMaster'
+    beforeEnter: requireAuth,
+    meta: {
+      title: 'Dashboard - Task Management',
+      requiresAuth: true
     }
   },
   {
     path: '/tasks',
-    name: 'Tasks',
-    component: Tasks,
-    meta: { 
-      requiresAuth: true,
-      title: 'All Tasks - TaskMaster'
+    name: 'TaskList',
+    component: TaskList,
+    beforeEnter: requireAuth,
+    meta: {
+      title: 'My Tasks - Task Management',
+      requiresAuth: true
     }
   },
   {
-    path: '/tasks/:status',
-    name: 'TasksByStatus',
-    component: Tasks,
-    meta: { 
-      requiresAuth: true,
-      title: 'Tasks - TaskMaster'
+    path: '/tasks/:id',
+    name: 'TaskDetail',
+    component: TaskDetail,
+    beforeEnter: requireAuth,
+    props: true, // Pass route params as props
+    meta: {
+      title: 'Task Details - Task Management',
+      requiresAuth: true
     }
   },
-  // Redirect old routes for backward compatibility
   {
-    path: '/item-list',
-    redirect: '/dashboard'
+    path: '/profile',
+    name: 'Profile',
+    component: Profile,
+    beforeEnter: requireAuth,
+    meta: {
+      title: 'Profile - Task Management',
+      requiresAuth: true
+    }
   },
+  
+  // Logout route (programmatic)
   {
-    path: '/seller-home',
-    redirect: '/dashboard'
+    path: '/logout',
+    name: 'Logout',
+    beforeEnter: (to, from, next) => {
+      // Clear authentication data
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      
+      // Redirect to login
+      next('/login')
+    }
   },
-  // 404 Catch all route
+  
+  // 404 Not Found
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
-    component: () => import('../components/NotFound.vue'),
+    component: NotFound,
     meta: {
-      title: 'Page Not Found - TaskMaster'
+      title: '404 - Page Not Found'
     }
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
   scrollBehavior(to, from, savedPosition) {
-    // Always scroll to top when navigating to a new page
+    // Scroll to top when navigating to a new route
     if (savedPosition) {
       return savedPosition
     } else {
@@ -139,57 +167,20 @@ const router = createRouter({
   }
 })
 
-// Helper function to check if user is authenticated
-function isAuthenticated() {
-  const user = localStorage.getItem('user')
-  const token = localStorage.getItem('token')
-  return user && token
-}
-
-// Navigation guard to check authentication and handle redirects
+// Global navigation guards
 router.beforeEach((to, from, next) => {
-  const authenticated = isAuthenticated()
-  
-  // Set page title
+  // Update document title
   if (to.meta.title) {
     document.title = to.meta.title
   }
   
-  // Check if route requires authentication
-  if (to.meta.requiresAuth && !authenticated) {
-    // Store intended destination for redirect after login
-    localStorage.setItem('intendedRoute', to.fullPath)
-    next('/login')
-    return
-  }
-  
-  // Check if route is for guests only (login/register pages)
-  if (to.meta.guest && authenticated) {
-    // If user is already logged in, redirect to dashboard
-    next('/dashboard')
-    return
-  }
-  
-  // If user just logged in and we have an intended route, redirect there
-  if (authenticated && to.path === '/login') {
-    const intendedRoute = localStorage.getItem('intendedRoute')
-    if (intendedRoute) {
-      localStorage.removeItem('intendedRoute')
-      next(intendedRoute)
-      return
-    }
-    next('/dashboard')
-    return
-  }
-  
-  // Allow navigation
+  // Continue with navigation
   next()
 })
 
-// After each route change
-router.afterEach((to) => {
-  // You can add analytics tracking here if needed
-  console.log(`Navigated to: ${to.path}`)
+// Handle navigation errors
+router.onError((error) => {
+  console.error('Router error:', error)
 })
 
 export default router

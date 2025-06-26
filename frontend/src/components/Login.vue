@@ -1,53 +1,60 @@
 <template>
-  <div class="login-container">
-    <div class="login-form">
-      <div class="logo-section">
-        <h1>TaskMaster</h1>
-        <p>Manage your tasks efficiently</p>
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <h2>Welcome Back</h2>
+        <p>Sign in to your account</p>
       </div>
       
-      <h2>Welcome Back</h2>
-      <form @submit.prevent="handleLogin">
+      <form @submit.prevent="handleLogin" class="auth-form">
         <div class="form-group">
-          <label for="username">Username:</label>
+          <label for="email">Email</label>
           <input
-            type="text"
-            id="username"
-            v-model="username"
+            type="email"
+            id="email"
+            v-model="form.email"
+            :class="{ 'error': errors.email }"
+            placeholder="Enter your email"
             required
-            class="form-control"
-            placeholder="Enter your username"
           />
+          <span v-if="errors.email" class="error-text">{{ errors.email }}</span>
         </div>
+        
         <div class="form-group">
-          <label for="password">Password:</label>
+          <label for="password">Password</label>
           <input
             type="password"
             id="password"
-            v-model="password"
-            required
-            class="form-control"
+            v-model="form.password"
+            :class="{ 'error': errors.password }"
             placeholder="Enter your password"
+            required
           />
+          <span v-if="errors.password" class="error-text">{{ errors.password }}</span>
         </div>
-        <button type="submit" class="btn btn-primary" :disabled="loading">
-          {{ loading ? 'Logging in...' : 'Login' }}
-          <span v-if="loading" class="spinner"></span>
+        
+        <button 
+          type="submit" 
+          class="auth-button"
+          :disabled="loading"
+        >
+          {{ loading ? 'Signing In...' : 'Sign In' }}
         </button>
+        
+        <div v-if="errorMessage" class="alert error">
+          {{ errorMessage }}
+        </div>
+        
+        <div v-if="successMessage" class="alert success">
+          {{ successMessage }}
+        </div>
       </form>
       
-      <div v-if="message" class="message" :class="messageType">
-        {{ message }}
+      <div class="auth-footer">
+        <p>Don't have an account? 
+          <router-link to="/register">Sign up</router-link>
+        </p>
       </div>
-      
-      <div class="divider">
-        <span>or</span>
-      </div>
-      
-      <p class="register-link">
-        Don't have an account? 
-        <router-link to="/register" class="link">Create one here</router-link>
-      </p>
     </div>
   </div>
 </template>
@@ -57,75 +64,73 @@ export default {
   name: 'Login',
   data() {
     return {
-      username: '',
-      password: '',
-      message: '',
-      messageType: '',
-      loading: false
-    }
-  },
-  mounted() {
-    // Check if user is already logged in
-    const user = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-    if (user && token) {
-      this.$router.push('/dashboard');
+      form: {
+        email: '',
+        password: ''
+      },
+      errors: {},
+      loading: false,
+      errorMessage: '',
+      successMessage: ''
     }
   },
   methods: {
+    validateForm() {
+      this.errors = {};
+      
+      if (!this.form.email) {
+        this.errors.email = 'Email is required';
+      } else if (!/\S+@\S+\.\S+/.test(this.form.email)) {
+        this.errors.email = 'Email is invalid';
+      }
+      
+      if (!this.form.password) {
+        this.errors.password = 'Password is required';
+      } else if (this.form.password.length < 6) {
+        this.errors.password = 'Password must be at least 6 characters';
+      }
+      
+      return Object.keys(this.errors).length === 0;
+    },
+    
     async handleLogin() {
+      this.errorMessage = '';
+      this.successMessage = '';
+      
+      if (!this.validateForm()) {
+        return;
+      }
+      
       this.loading = true;
-      this.message = '';
       
       try {
-        const response = await fetch('http://localhost/TaskMaster/backend/api.php?action=login', {
+        const response = await fetch('http://localhost:8000/api/auth/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            username: this.username,
-            password: this.password
-          })
+          body: JSON.stringify(this.form)
         });
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const data = await response.json();
         
-        const responseText = await response.text();
-        console.log('Response text:', responseText);
-        
-        let data;
-        try {
-          data = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error('Failed to parse JSON:', parseError);
-          console.error('Response was:', responseText);
-          this.message = 'Invalid response from server';
-          this.messageType = 'error';
-          return;
-        }
-        
-        if (data.status === 'success') {
-          this.message = 'Login successful! Redirecting...';
-          this.messageType = 'success';
-          
-          // Store user data and token
-          localStorage.setItem('user', JSON.stringify(data.user));
+        if (response.ok) {
+          // Store token in localStorage
           localStorage.setItem('token', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
           
-          // Redirect to dashboard
+          this.successMessage = 'Login successful! Redirecting...';
+          
+          // Redirect after a short delay
           setTimeout(() => {
             this.$router.push('/dashboard');
-          }, 1000);
+          }, 1500);
+          
         } else {
-          this.message = data.message || 'Invalid username or password';
-          this.messageType = 'error';
+          this.errorMessage = data.error || 'Login failed';
         }
       } catch (error) {
-        this.message = 'Connection error. Please try again.';
-        this.messageType = 'error';
+        this.errorMessage = 'Network error. Please try again.';
         console.error('Login error:', error);
       } finally {
         this.loading = false;
@@ -136,278 +141,154 @@ export default {
 </script>
 
 <style scoped>
-.login-container {
+.auth-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.auth-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   padding: 2rem;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-.login-form {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  padding: 3rem;
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   width: 100%;
-  max-width: 450px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  max-width: 400px;
 }
 
-.logo-section {
+.auth-header {
   text-align: center;
   margin-bottom: 2rem;
 }
 
-.logo-section h1 {
-  margin: 0;
-  font-size: 2.5rem;
+.auth-header h2 {
+  color: #1f2937;
+  font-size: 1.875rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  margin-bottom: 0.5rem;
 }
 
-.logo-section p {
-  margin: 0.5rem 0 0 0;
-  color: #666;
-  font-size: 1.1rem;
+.auth-header p {
+  color: #6b7280;
+  font-size: 0.875rem;
 }
 
-.login-form h2 {
-  text-align: center;
-  margin-bottom: 2rem;
-  color: #2c3e50;
-  font-size: 1.8rem;
-  font-weight: 600;
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .form-group {
-  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  color: #2c3e50;
-  font-weight: 600;
-  font-size: 0.95rem;
+  color: #374151;
+  font-weight: 500;
+  font-size: 0.875rem;
 }
 
-.form-control {
-  width: 100%;
-  padding: 1rem;
-  border: 2px solid #e9ecef;
-  border-radius: 12px;
+.form-group input {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
   font-size: 1rem;
-  box-sizing: border-box;
-  transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.8);
+  transition: all 0.2s ease;
 }
 
-.form-control:focus {
+.form-group input:focus {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  background: white;
-  transform: translateY(-2px);
 }
 
-.form-control::placeholder {
-  color: #adb5bd;
+.form-group input.error {
+  border-color: #ef4444;
 }
 
-.btn {
-  width: 100%;
-  padding: 1rem;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+.error-text {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.auth-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: 12px;
-  font-size: 1.1rem;
+  padding: 0.875rem;
+  border-radius: 8px;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  transition: all 0.2s ease;
   margin-top: 1rem;
 }
 
-.btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+.auth-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.btn:active {
-  transform: translateY(0);
-}
-
-.btn:disabled {
-  opacity: 0.7;
+.auth-button:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
-  transform: none;
 }
 
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+.alert {
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  margin-top: 1rem;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.alert.error {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
 }
 
-.message {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  border-radius: 12px;
+.alert.success {
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.auth-footer {
   text-align: center;
-  font-weight: 500;
-  animation: slideIn 0.3s ease-out;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.auth-footer p {
+  color: #6b7280;
+  font-size: 0.875rem;
 }
 
-.message.success {
-  background: rgba(46, 204, 113, 0.1);
-  color: #27ae60;
-  border: 2px solid rgba(46, 204, 113, 0.2);
-}
-
-.message.error {
-  background: rgba(231, 76, 60, 0.1);
-  color: #e74c3c;
-  border: 2px solid rgba(231, 76, 60, 0.2);
-}
-
-.divider {
-  text-align: center;
-  margin: 2rem 0;
-  position: relative;
-}
-
-.divider::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: #e9ecef;
-}
-
-.divider span {
-  background: rgba(255, 255, 255, 0.95);
-  padding: 0 1rem;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.register-link {
-  text-align: center;
-  margin: 0;
-  color: #666;
-  font-size: 0.95rem;
-}
-
-.link {
+.auth-footer a {
   color: #667eea;
   text-decoration: none;
-  font-weight: 600;
-  transition: color 0.3s ease;
+  font-weight: 500;
 }
 
-.link:hover {
-  color: #5a6fd8;
+.auth-footer a:hover {
   text-decoration: underline;
 }
 
-/* Responsive Design */
 @media (max-width: 480px) {
-  .login-container {
-    padding: 1rem;
+  .auth-card {
+    padding: 1.5rem;
   }
   
-  .login-form {
-    padding: 2rem;
-    border-radius: 15px;
-  }
-  
-  .logo-section h1 {
-    font-size: 2rem;
-  }
-  
-  .login-form h2 {
+  .auth-header h2 {
     font-size: 1.5rem;
-  }
-  
-  .form-control {
-    padding: 0.875rem;
-  }
-  
-  .btn {
-    padding: 0.875rem;
-    font-size: 1rem;
-  }
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .login-form {
-    background: rgba(44, 62, 80, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  
-  .login-form h2 {
-    color: #ecf0f1;
-  }
-  
-  .form-group label {
-    color: #ecf0f1;
-  }
-  
-  .form-control {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #ecf0f1;
-  }
-  
-  .form-control:focus {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: #667eea;
-  }
-  
-  .form-control::placeholder {
-    color: #95a5a6;
-  }
-  
-  .register-link {
-    color: #bdc3c7;
-  }
-  
-  .divider span {
-    background: rgba(44, 62, 80, 0.95);
-    color: #bdc3c7;
   }
 }
 </style>

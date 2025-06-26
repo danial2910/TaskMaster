@@ -1,84 +1,126 @@
 <template>
-  <div class="dashboard-container">
-    <!-- Header -->
-    <header class="dashboard-header">
+  <div class="dashboard">
+    <!-- Header Section -->
+    <div class="dashboard-header">
       <div class="header-content">
-        <h1>TaskMaster Dashboard</h1>
-        <div class="user-info">
-          <span>Welcome, {{ user.username }}!</span>
-          <button @click="logout" class="logout-btn">Logout</button>
+        <div class="welcome-section">
+          <h1>Welcome back, {{ user?.username }}!</h1>
+          <p>Here's what's happening with your tasks today</p>
+        </div>
+        <div class="header-actions">
+          <button @click="showCreateModal = true" class="btn-primary">
+            <i class="icon-plus"></i>
+            New Task
+          </button>
         </div>
       </div>
-    </header>
+    </div>
 
-    <!-- Navigation Tabs -->
-    <nav class="dashboard-nav">
-      <button 
-        v-for="tab in tabs" 
-        :key="tab.id"
-        @click="activeTab = tab.id"
-        :class="['nav-tab', { active: activeTab === tab.id }]"
-      >
-        <i :class="tab.icon"></i>
-        {{ tab.name }}
-        <span v-if="tab.count !== undefined" class="count-badge">{{ tab.count }}</span>
-      </button>
-    </nav>
-
-    <!-- Main Content -->
-    <main class="dashboard-main">
-      <!-- Overview Tab -->
-      <div v-if="activeTab === 'overview'" class="tab-content">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon">📋</div>
-            <div class="stat-info">
-              <h3>{{ totalTasks }}</h3>
-              <p>Total Tasks</p>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon">✅</div>
-            <div class="stat-info">
-              <h3>{{ completedTasks }}</h3>
-              <p>Completed</p>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon">⏳</div>
-            <div class="stat-info">
-              <h3>{{ pendingTasks }}</h3>
-              <p>Pending</p>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon">📁</div>
-            <div class="stat-info">
-              <h3>{{ totalProjects }}</h3>
-              <p>Projects</p>
-            </div>
-          </div>
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon pending">
+          <i class="icon-clock"></i>
         </div>
+        <div class="stat-content">
+          <h3>{{ stats.pending }}</h3>
+          <p>Pending Tasks</p>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon in-progress">
+          <i class="icon-play"></i>
+        </div>
+        <div class="stat-content">
+          <h3>{{ stats.inProgress }}</h3>
+          <p>In Progress</p>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon completed">
+          <i class="icon-check"></i>
+        </div>
+        <div class="stat-content">
+          <h3>{{ stats.completed }}</h3>
+          <p>Completed</p>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon total">
+          <i class="icon-list"></i>
+        </div>
+        <div class="stat-content">
+          <h3>{{ stats.total }}</h3>
+          <p>Total Tasks</p>
+        </div>
+      </div>
+    </div>
 
-        <!-- Recent Tasks -->
-        <div class="recent-section">
+    <!-- Main Content Grid -->
+    <div class="dashboard-grid">
+      <!-- Recent Tasks -->
+      <div class="dashboard-card">
+        <div class="card-header">
           <h2>Recent Tasks</h2>
-          <div class="task-list">
+          <router-link to="/tasks" class="view-all-link">View All</router-link>
+        </div>
+        <div class="card-content">
+          <div v-if="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading tasks...</p>
+          </div>
+          
+          <div v-else-if="recentTasks.length === 0" class="empty-state">
+            <i class="icon-inbox"></i>
+            <h3>No tasks yet</h3>
+            <p>Create your first task to get started!</p>
+            <button @click="showCreateModal = true" class="btn-secondary">
+              Create Task
+            </button>
+          </div>
+          
+          <div v-else class="task-list">
             <div 
               v-for="task in recentTasks" 
-              :key="task.id"
+              :key="task.id" 
               class="task-item"
-              :class="{ completed: task.status === 'completed' }"
+              @click="viewTask(task.id)"
             >
-              <div class="task-info">
+              <div class="task-status">
+                <span :class="['status-badge', task.status]">
+                  {{ getStatusLabel(task.status) }}
+                </span>
+              </div>
+              <div class="task-content">
                 <h4>{{ task.title }}</h4>
-                <p>{{ task.description }}</p>
-                <small>Due: {{ formatDate(task.due_date) }}</small>
+                <p v-if="task.description">{{ truncateText(task.description, 100) }}</p>
+                <div class="task-meta">
+                  <span class="priority" :class="task.priority">
+                    {{ task.priority }} priority
+                  </span>
+                  <span v-if="task.due_date" class="due-date">
+                    Due: {{ formatDate(task.due_date) }}
+                  </span>
+                </div>
               </div>
               <div class="task-actions">
-                <span :class="['status-badge', task.status]">{{ task.status }}</span>
-                <button @click="toggleTaskStatus(task)" class="action-btn">
-                  {{ task.status === 'completed' ? '↶' : '✓' }}
+                <button 
+                  @click.stop="updateTaskStatus(task, 'completed')"
+                  v-if="task.status !== 'completed'"
+                  class="action-btn complete"
+                  title="Mark as complete"
+                >
+                  <i class="icon-check"></i>
+                </button>
+                <button 
+                  @click.stop="editTask(task)"
+                  class="action-btn edit"
+                  title="Edit task"
+                >
+                  <i class="icon-edit"></i>
                 </button>
               </div>
             </div>
@@ -86,216 +128,120 @@
         </div>
       </div>
 
-      <!-- Tasks Tab -->
-      <div v-if="activeTab === 'tasks'" class="tab-content">
-        <div class="section-header">
-          <h2>My Tasks</h2>
-          <button @click="showCreateTask = true" class="primary-btn">
-            <i class="fas fa-plus"></i> New Task
-          </button>
+      <!-- Quick Actions & Overview -->
+      <div class="dashboard-card">
+        <div class="card-header">
+          <h2>Quick Actions</h2>
         </div>
+        <div class="card-content">
+          <div class="quick-actions">
+            <button @click="showCreateModal = true" class="quick-action-btn">
+              <i class="icon-plus"></i>
+              <span>Create Task</span>
+            </button>
+            <router-link to="/tasks" class="quick-action-btn">
+              <i class="icon-list"></i>
+              <span>View All Tasks</span>
+            </router-link>
+            <router-link to="/profile" class="quick-action-btn">
+              <i class="icon-user"></i>
+              <span>Profile Settings</span>
+            </router-link>
+          </div>
 
-        <!-- Task Filters -->
-        <div class="filters">
-          <select v-model="taskFilter" @change="filterTasks">
-            <option value="all">All Tasks</option>
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
-          <select v-model="projectFilter" @change="filterTasks">
-            <option value="">All Projects</option>
-            <option v-for="project in projects" :key="project.id" :value="project.id">
-              {{ project.name }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Tasks List -->
-        <div class="tasks-grid">
-          <div 
-            v-for="task in filteredTasks" 
-            :key="task.id"
-            class="task-card"
-            :class="{ completed: task.status === 'completed' }"
-          >
-            <div class="task-header">
-              <h3>{{ task.title }}</h3>
-              <div class="task-menu">
-                <button @click="editTask(task)" class="edit-btn">✏️</button>
-                <button @click="deleteTask(task.id)" class="delete-btn">🗑️</button>
+          <!-- Priority Breakdown -->
+          <div class="priority-breakdown">
+            <h3>Tasks by Priority</h3>
+            <div class="priority-list">
+              <div class="priority-item">
+                <span class="priority-label urgent">Urgent</span>
+                <span class="priority-count">{{ priorityStats.urgent }}</span>
               </div>
-            </div>
-            <p class="task-description">{{ task.description }}</p>
-            <div class="task-meta">
-              <span class="priority" :class="task.priority">{{ task.priority }}</span>
-              <span class="due-date">Due: {{ formatDate(task.due_date) }}</span>
-            </div>
-            <div class="task-footer">
-              <select 
-                v-model="task.status" 
-                @change="updateTaskStatus(task)"
-                class="status-select"
-              >
-                <option value="pending">Pending</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-              </select>
-              <button @click="viewTaskComments(task)" class="comments-btn">
-                💬 {{ task.comments_count || 0 }}
-              </button>
+              <div class="priority-item">
+                <span class="priority-label high">High</span>
+                <span class="priority-count">{{ priorityStats.high }}</span>
+              </div>
+              <div class="priority-item">
+                <span class="priority-label medium">Medium</span>
+                <span class="priority-count">{{ priorityStats.medium }}</span>
+              </div>
+              <div class="priority-item">
+                <span class="priority-label low">Low</span>
+                <span class="priority-count">{{ priorityStats.low }}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- Projects Tab -->
-      <div v-if="activeTab === 'projects'" class="tab-content">
-        <div class="section-header">
-          <h2>My Projects</h2>
-          <button @click="showCreateProject = true" class="primary-btn">
-            <i class="fas fa-plus"></i> New Project
-          </button>
-        </div>
-
-        <div class="projects-grid">
-          <div v-for="project in projects" :key="project.id" class="project-card">
-            <div class="project-header">
-              <h3>{{ project.name }}</h3>
-              <div class="project-menu">
-                <button @click="editProject(project)" class="edit-btn">✏️</button>
-                <button @click="deleteProject(project.id)" class="delete-btn">🗑️</button>
-              </div>
-            </div>
-            <p class="project-description">{{ project.description }}</p>
-            <div class="project-stats">
-              <div class="stat">
-                <span class="stat-label">Tasks:</span>
-                <span class="stat-value">{{ project.tasks_count || 0 }}</span>
-              </div>
-              <div class="stat">
-                <span class="stat-label">Progress:</span>
-                <div class="progress-bar">
-                  <div 
-                    class="progress-fill" 
-                    :style="{ width: project.progress + '%' }"
-                  ></div>
-                </div>
-                <span class="stat-value">{{ project.progress }}%</span>
-              </div>
-            </div>
-            <div class="project-footer">
-              <span class="created-date">Created: {{ formatDate(project.created_at) }}</span>
-              <button @click="viewProjectTasks(project)" class="view-tasks-btn">
-                View Tasks
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Comments Tab -->
-      <div v-if="activeTab === 'comments'" class="tab-content">
-        <h2>Recent Comments</h2>
-        <div class="comments-list">
-          <div v-for="comment in comments" :key="comment.id" class="comment-item">
-            <div class="comment-header">
-              <strong>{{ comment.task_title }}</strong>
-              <small>{{ formatDate(comment.created_at) }}</small>
-            </div>
-            <p class="comment-text">{{ comment.content }}</p>
-            <div class="comment-actions">
-              <button @click="editComment(comment)" class="edit-btn">Edit</button>
-              <button @click="deleteComment(comment.id)" class="delete-btn">Delete</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
+    </div>
 
     <!-- Create Task Modal -->
-    <div v-if="showCreateTask" class="modal-overlay" @click="showCreateTask = false">
-      <div class="modal-content" @click.stop>
+    <div v-if="showCreateModal" class="modal-overlay" @click="closeModal">
+      <div class="modal" @click.stop>
         <div class="modal-header">
-          <h3>Create New Task</h3>
-          <button @click="showCreateTask = false" class="close-btn">×</button>
+          <h2>Create New Task</h2>
+          <button @click="closeModal" class="close-btn">
+            <i class="icon-x"></i>
+          </button>
         </div>
-        <form @submit.prevent="createTask" class="task-form">
+        <form @submit.prevent="createTask" class="modal-body">
           <div class="form-group">
-            <label>Title:</label>
-            <input v-model="newTask.title" type="text" required class="form-control">
+            <label for="taskTitle">Title *</label>
+            <input
+              type="text"
+              id="taskTitle"
+              v-model="newTask.title"
+              placeholder="Enter task title"
+              required
+            />
           </div>
+          
           <div class="form-group">
-            <label>Description:</label>
-            <textarea v-model="newTask.description" class="form-control" rows="3"></textarea>
+            <label for="taskDescription">Description</label>
+            <textarea
+              id="taskDescription"
+              v-model="newTask.description"
+              placeholder="Enter task description"
+              rows="3"
+            ></textarea>
           </div>
+          
           <div class="form-row">
             <div class="form-group">
-              <label>Priority:</label>
-              <select v-model="newTask.priority" class="form-control">
+              <label for="taskPriority">Priority</label>
+              <select id="taskPriority" v-model="newTask.priority">
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
+                <option value="urgent">Urgent</option>
               </select>
             </div>
+            
             <div class="form-group">
-              <label>Project:</label>
-              <select v-model="newTask.project_id" class="form-control">
-                <option value="">No Project</option>
-                <option v-for="project in projects" :key="project.id" :value="project.id">
-                  {{ project.name }}
-                </option>
-              </select>
+              <label for="taskDueDate">Due Date</label>
+              <input
+                type="datetime-local"
+                id="taskDueDate"
+                v-model="newTask.due_date"
+              />
             </div>
           </div>
-          <div class="form-group">
-            <label>Due Date:</label>
-            <input v-model="newTask.due_date" type="datetime-local" class="form-control">
-          </div>
+          
           <div class="modal-actions">
-            <button type="button" @click="showCreateTask = false" class="secondary-btn">Cancel</button>
-            <button type="submit" class="primary-btn" :disabled="loading">
-              {{ loading ? 'Creating...' : 'Create Task' }}
+            <button type="button" @click="closeModal" class="btn-secondary">
+              Cancel
+            </button>
+            <button type="submit" class="btn-primary" :disabled="creating">
+              {{ creating ? 'Creating...' : 'Create Task' }}
             </button>
           </div>
         </form>
       </div>
     </div>
 
-    <!-- Create Project Modal -->
-    <div v-if="showCreateProject" class="modal-overlay" @click="showCreateProject = false">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>Create New Project</h3>
-          <button @click="showCreateProject = false" class="close-btn">×</button>
-        </div>
-        <form @submit.prevent="createProject" class="project-form">
-          <div class="form-group">
-            <label>Project Name:</label>
-            <input v-model="newProject.name" type="text" required class="form-control">
-          </div>
-          <div class="form-group">
-            <label>Description:</label>
-            <textarea v-model="newProject.description" class="form-control" rows="3"></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" @click="showCreateProject = false" class="secondary-btn">Cancel</button>
-            <button type="submit" class="primary-btn" :disabled="loading">
-              {{ loading ? 'Creating...' : 'Create Project' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Loading Overlay -->
-    <div v-if="loading" class="loading-overlay">
-      <div class="spinner"></div>
-    </div>
-
-    <!-- Toast Messages -->
-    <div v-if="message" :class="['toast', messageType]">
-      {{ message }}
+    <!-- Toast Notifications -->
+    <div v-if="toast.show" :class="['toast', toast.type]">
+      {{ toast.message }}
     </div>
   </div>
 </template>
@@ -305,709 +251,371 @@ export default {
   name: 'Dashboard',
   data() {
     return {
-      user: JSON.parse(localStorage.getItem('user') || '{}'),
-      activeTab: 'overview',
-      loading: false,
-      message: '',
-      messageType: '',
-      
-      // Data
+      loading: true,
+      creating: false,
+      showCreateModal: false,
       tasks: [],
-      projects: [],
-      comments: [],
-      
-      // Filters
-      taskFilter: 'all',
-      projectFilter: '',
-      
-      // Modals
-      showCreateTask: false,
-      showCreateProject: false,
-      
-      // Forms
       newTask: {
         title: '',
         description: '',
         priority: 'medium',
-        project_id: '',
         due_date: ''
       },
-      newProject: {
-        name: '',
-        description: ''
-      },
-      
-      // Tabs configuration
-      tabs: [
-        { id: 'overview', name: 'Overview', icon: 'fas fa-chart-dashboard' },
-        { id: 'tasks', name: 'Tasks', icon: 'fas fa-tasks', count: 0 },
-        { id: 'projects', name: 'Projects', icon: 'fas fa-folder', count: 0 },
-        { id: 'comments', name: 'Comments', icon: 'fas fa-comments', count: 0 }
-      ]
+      toast: {
+        show: false,
+        message: '',
+        type: 'success'
+      }
     }
   },
   computed: {
-    totalTasks() {
-      return this.tasks.length;
+    user() {
+      const userData = localStorage.getItem('user')
+      return userData ? JSON.parse(userData) : null
     },
-    completedTasks() {
-      return this.tasks.filter(task => task.status === 'completed').length;
-    },
-    pendingTasks() {
-      return this.tasks.filter(task => task.status === 'pending').length;
-    },
-    totalProjects() {
-      return this.projects.length;
-    },
+    
     recentTasks() {
-      return this.tasks
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 5);
+      return this.tasks.slice(0, 5)
     },
-    filteredTasks() {
-      let filtered = this.tasks;
+    
+    stats() {
+      const pending = this.tasks.filter(task => task.status === 'pending').length
+      const inProgress = this.tasks.filter(task => task.status === 'in_progress').length
+      const completed = this.tasks.filter(task => task.status === 'completed').length
+      const total = this.tasks.length
       
-      if (this.taskFilter !== 'all') {
-        filtered = filtered.filter(task => task.status === this.taskFilter);
-      }
+      return { pending, inProgress, completed, total }
+    },
+    
+    priorityStats() {
+      const urgent = this.tasks.filter(task => task.priority === 'urgent').length
+      const high = this.tasks.filter(task => task.priority === 'high').length
+      const medium = this.tasks.filter(task => task.priority === 'medium').length
+      const low = this.tasks.filter(task => task.priority === 'low').length
       
-      if (this.projectFilter) {
-        filtered = filtered.filter(task => task.project_id == this.projectFilter);
-      }
-      
-      return filtered;
+      return { urgent, high, medium, low }
     }
   },
+  
   async mounted() {
-    // Check if user is logged in
-    if (!this.user.username) {
-      this.$router.push('/login');
-      return;
-    }
-    
-    await this.loadDashboardData();
+    await this.fetchTasks()
   },
+  
   methods: {
-    async loadDashboardData() {
-      this.loading = true;
-      try {
-        await Promise.all([
-          this.fetchTasks(),
-          this.fetchProjects(),
-          this.fetchComments()
-        ]);
-        this.updateTabCounts();
-      } catch (error) {
-        this.showMessage('Failed to load dashboard data', 'error');
-      } finally {
-        this.loading = false;
-      }
-    },
-    
     async fetchTasks() {
+      this.loading = true
       try {
-        const response = await fetch('/api/tasks', {
+        const token = localStorage.getItem('token')
+        const response = await fetch('http://localhost:8000/api/tasks', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
-        });
+        })
         
         if (response.ok) {
-          this.tasks = await response.json();
+          this.tasks = await response.json()
+        } else {
+          this.showToast('Failed to load tasks', 'error')
         }
       } catch (error) {
-        console.error('Error fetching tasks:', error);
-      }
-    },
-    
-    async fetchProjects() {
-      try {
-        const response = await fetch('/api/projects', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (response.ok) {
-          this.projects = await response.json();
-        }
-      } catch (error) {
-        console.error('Error fetching projects:', error);
-      }
-    },
-    
-    async fetchComments() {
-      try {
-        const response = await fetch('/api/comments', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (response.ok) {
-          this.comments = await response.json();
-        }
-      } catch (error) {
-        console.error('Error fetching comments:', error);
+        console.error('Error fetching tasks:', error)
+        this.showToast('Network error. Please try again.', 'error')
+      } finally {
+        this.loading = false
       }
     },
     
     async createTask() {
-      this.loading = true;
+      this.creating = true
       try {
-        const response = await fetch('/api/tasks', {
+        const token = localStorage.getItem('token')
+        const response = await fetch('http://localhost:8000/api/tasks', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify(this.newTask)
-        });
+        })
         
         if (response.ok) {
-          const newTask = await response.json();
-          this.tasks.push(newTask);
-          this.showCreateTask = false;
-          this.resetNewTask();
-          this.showMessage('Task created successfully', 'success');
-          this.updateTabCounts();
+          const task = await response.json()
+          this.tasks.unshift(task)
+          this.closeModal()
+          this.showToast('Task created successfully!', 'success')
         } else {
-          this.showMessage('Failed to create task', 'error');
+          const error = await response.json()
+          this.showToast(error.error || 'Failed to create task', 'error')
         }
       } catch (error) {
-        this.showMessage('Error creating task', 'error');
+        console.error('Error creating task:', error)
+        this.showToast('Network error. Please try again.', 'error')
       } finally {
-        this.loading = false;
+        this.creating = false
       }
     },
     
-    async createProject() {
-      this.loading = true;
+    async updateTaskStatus(task, newStatus) {
       try {
-        const response = await fetch('/api/projects', {
-          method: 'POST',
+        const token = localStorage.getItem('token')
+        const response = await fetch(`http://localhost:8000/api/tasks/${task.id}/status`, {
+          method: 'PUT',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           },
-          body: JSON.stringify(this.newProject)
-        });
+          body: JSON.stringify({ status: newStatus })
+        })
         
         if (response.ok) {
-          const newProject = await response.json();
-          this.projects.push(newProject);
-          this.showCreateProject = false;
-          this.resetNewProject();
-          this.showMessage('Project created successfully', 'success');
-          this.updateTabCounts();
-        } else {
-          this.showMessage('Failed to create project', 'error');
-        }
-      } catch (error) {
-        this.showMessage('Error creating project', 'error');
-      } finally {
-        this.loading = false;
-      }
-    },
-    
-    async updateTaskStatus(task) {
-      try {
-        const response = await fetch(`/api/tasks/${task.id}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify({ status: task.status })
-        });
-        
-        if (response.ok) {
-          this.showMessage('Task status updated', 'success');
-        } else {
-          this.showMessage('Failed to update task status', 'error');
-        }
-      } catch (error) {
-        this.showMessage('Error updating task status', 'error');
-      }
-    },
-    
-    async deleteTask(taskId) {
-      if (!confirm('Are you sure you want to delete this task?')) return;
-      
-      try {
-        const response = await fetch(`/api/tasks/${taskId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          const updatedTask = await response.json()
+          const index = this.tasks.findIndex(t => t.id === task.id)
+          if (index !== -1) {
+            this.tasks.splice(index, 1, updatedTask)
           }
-        });
-        
-        if (response.ok) {
-          this.tasks = this.tasks.filter(task => task.id !== taskId);
-          this.showMessage('Task deleted successfully', 'success');
-          this.updateTabCounts();
+          this.showToast('Task status updated!', 'success')
         } else {
-          this.showMessage('Failed to delete task', 'error');
+          this.showToast('Failed to update task status', 'error')
         }
       } catch (error) {
-        this.showMessage('Error deleting task', 'error');
+        console.error('Error updating task status:', error)
+        this.showToast('Network error. Please try again.', 'error')
       }
     },
     
-    async deleteProject(projectId) {
-      if (!confirm('Are you sure you want to delete this project?')) return;
-      
-      try {
-        const response = await fetch(`/api/projects/${projectId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (response.ok) {
-          this.projects = this.projects.filter(project => project.id !== projectId);
-          this.showMessage('Project deleted successfully', 'success');
-          this.updateTabCounts();
-        } else {
-          this.showMessage('Failed to delete project', 'error');
-        }
-      } catch (error) {
-        this.showMessage('Error deleting project', 'error');
-      }
+    viewTask(taskId) {
+      this.$router.push(`/tasks/${taskId}`)
     },
     
-    filterTasks() {
-      // Computed property handles this automatically
+    editTask(task) {
+      // You can implement inline editing or navigate to edit page
+      this.$router.push(`/tasks/${task.id}`)
     },
     
-    updateTabCounts() {
-      this.tabs.find(tab => tab.id === 'tasks').count = this.tasks.length;
-      this.tabs.find(tab => tab.id === 'projects').count = this.projects.length;
-      this.tabs.find(tab => tab.id === 'comments').count = this.comments.length;
-    },
-    
-    resetNewTask() {
+    closeModal() {
+      this.showCreateModal = false
       this.newTask = {
         title: '',
         description: '',
         priority: 'medium',
-        project_id: '',
         due_date: ''
-      };
+      }
     },
     
-    resetNewProject() {
-      this.newProject = {
-        name: '',
-        description: ''
-      };
+    getStatusLabel(status) {
+      const labels = {
+        'pending': 'Pending',
+        'in_progress': 'In Progress',
+        'completed': 'Completed',
+        'cancelled': 'Cancelled'
+      }
+      return labels[status] || status
+    },
+    
+    truncateText(text, length) {
+      return text.length > length ? text.substring(0, length) + '...' : text
     },
     
     formatDate(dateString) {
-      if (!dateString) return 'No date';
-      return new Date(dateString).toLocaleDateString();
+      const date = new Date(dateString)
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
     },
     
-    showMessage(text, type) {
-      this.message = text;
-      this.messageType = type;
+    showToast(message, type = 'success') {
+      this.toast = { show: true, message, type }
       setTimeout(() => {
-        this.message = '';
-      }, 3000);
-    },
-    
-    logout() {
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      this.$router.push('/login');
-    },
-    
-    // Placeholder methods for future implementation
-    editTask(task) {
-      console.log('Edit task:', task);
-    },
-    
-    editProject(project) {
-      console.log('Edit project:', project);
-    },
-    
-    viewTaskComments(task) {
-      console.log('View comments for task:', task);
-    },
-    
-    viewProjectTasks(project) {
-      console.log('View tasks for project:', project);
-    },
-    
-    editComment(comment) {
-      console.log('Edit comment:', comment);
-    },
-    
-    deleteComment(commentId) {
-      console.log('Delete comment:', commentId);
+        this.toast.show = false
+      }, 3000)
     }
   }
 }
 </script>
 
 <style scoped>
-.dashboard-container {
+.dashboard {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f8fafc;
+  padding: 2rem;
 }
 
 .dashboard-header {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  padding: 1rem 2rem;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  padding: 2rem;
 }
 
 .header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
 }
 
-.dashboard-header h1 {
-  margin: 0;
-  color: #2c3e50;
+.welcome-section h1 {
+  color: #1f2937;
   font-size: 2rem;
   font-weight: 700;
+  margin-bottom: 0.5rem;
 }
 
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+.welcome-section p {
+  color: #6b7280;
+  font-size: 1rem;
 }
 
-.logout-btn {
-  background: #e74c3c;
+.header-actions .btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-.logout-btn:hover {
-  background: #c0392b;
-}
-
-.dashboard-nav {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 1rem 2rem;
-  display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-}
-
-.nav-tab {
-  background: rgba(255, 255, 255, 0.2);
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 25px;
-  color: white;
+  border-radius: 8px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  white-space: nowrap;
-  position: relative;
+  transition: all 0.2s ease;
 }
 
-.nav-tab.active {
-  background: rgba(255, 255, 255, 0.9);
-  color: #2c3e50;
-  transform: translateY(-2px);
-}
-
-.count-badge {
-  background: #e74c3c;
-  color: white;
-  font-size: 0.75rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 12px;
-  min-width: 20px;
-  text-align: center;
-}
-
-.dashboard-main {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.tab-content {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 15px;
-  padding: 2rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(10px);
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  padding: 1.5rem;
+  background: white;
   border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   display: flex;
   align-items: center;
   gap: 1rem;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
 .stat-icon {
-  font-size: 2.5rem;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: white;
 }
 
-.stat-info h3 {
-  margin: 0;
+.stat-icon.pending { background: #f59e0b; }
+.stat-icon.in-progress { background: #3b82f6; }
+.stat-icon.completed { background: #10b981; }
+.stat-icon.total { background: #6366f1; }
+
+.stat-content h3 {
   font-size: 2rem;
   font-weight: 700;
-}
-
-.stat-info p {
-  margin: 0.5rem 0 0 0;
-  opacity: 0.9;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.section-header h2 {
+  color: #1f2937;
   margin: 0;
-  color: #2c3e50;
 }
 
-.primary-btn {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.stat-content p {
+  color: #6b7280;
+  margin: 0;
+  font-size: 0.875rem;
 }
 
-.primary-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-}
-
-.filters {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.filters select {
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: white;
-}
-
-.tasks-grid, .projects-grid {
+.dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
 }
 
-.task-card, .project-card {
+.dashboard-card {
   background: white;
   border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-  border-left: 4px solid #667eea;
-  transition: all 0.3s;
-}
-
-.task-card:hover, .project-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-}
-
-.task-card.completed {
-  opacity: 0.7;
-  border-left-color: #2ecc71;
-}
-
-.task-header, .project-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.task-header h3, .project-header h3 {
-  margin: 0;
-  color: #2c3e50;
-  font-size: 1.2rem;
-}
-
-.task-menu, .project-menu {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.edit-btn, .delete-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 4px;
-  transition: background 0.3s;
-}
-
-.edit-btn:hover {
-  background: rgba(52, 152, 219, 0.1);
-}
-
-.delete-btn:hover {
-  background: rgba(231, 76, 60, 0.1);
-}
-
-.task-description, .project-description {
-  color: #666;
-  margin-bottom: 1rem;
-  line-height: 1.4;
-}
-
-.task-meta {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.priority {
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.priority.low {
-  background: #d4edda;
-  color: #155724;
-}
-
-.priority.medium {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.priority.high {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.due-date {
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.task-footer, .project-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: auto;
-}
-
-.status-select {
-  padding: 0.25rem 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  background: white;
-}
-
-.comments-btn, .view-tasks-btn {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s;
-}
-
-.comments-btn:hover, .view-tasks-btn:hover {
-  background: rgba(102, 126, 234, 0.2);
-}
-
-.project-stats {
-  margin-bottom: 1rem;
-}
-
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.stat-label {
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.stat-value {
-  color: #666;
-}
-
-.progress-bar {
-  background: #e9ecef;
-  border-radius: 10px;
-  height: 8px;
-  flex: 1;
-  margin: 0 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   overflow: hidden;
 }
 
-.progress-fill {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  height: 100%;
-  border-radius: 10px;
-  transition: width 0.3s ease;
+.card-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.created-date {
-  color: #666;
-  font-size: 0.9rem;
+.card-header h2 {
+  color: #1f2937;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
 }
 
-.recent-section {
-  margin-top: 2rem;
+.view-all-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.875rem;
 }
 
-.recent-section h2 {
-  color: #2c3e50;
+.view-all-link:hover {
+  text-decoration: underline;
+}
+
+.card-content {
+  padding: 1.5rem;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+}
+
+.empty-state i {
+  font-size: 3rem;
+  color: #d1d5db;
   margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
 }
 
 .task-list {
@@ -1017,149 +625,193 @@ export default {
 }
 
 .task-item {
-  background: white;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 1rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: all 0.3s;
+  gap: 1rem;
+  align-items: flex-start;
 }
 
 .task-item:hover {
-  transform: translateX(5px);
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
 }
 
-.task-item.completed {
-  opacity: 0.7;
-  text-decoration: line-through;
-}
-
-.task-info h4 {
-  margin: 0 0 0.5rem 0;
-  color: #2c3e50;
-}
-
-.task-info p {
-  margin: 0 0 0.25rem 0;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.task-info small {
-  color: #999;
-  font-size: 0.8rem;
-}
-
-.task-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+.task-status {
+  flex-shrink: 0;
 }
 
 .status-badge {
   padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
   font-weight: 600;
-  text-transform: capitalize;
+  text-transform: uppercase;
 }
 
 .status-badge.pending {
-  background: #fff3cd;
-  color: #856404;
+  background: #fef3c7;
+  color: #d97706;
 }
 
 .status-badge.in_progress {
-  background: #cce5ff;
-  color: #004085;
+  background: #dbeafe;
+  color: #2563eb;
 }
 
 .status-badge.completed {
-  background: #d4edda;
-  color: #155724;
+  background: #d1fae5;
+  color: #059669;
+}
+
+.task-content {
+  flex: 1;
+}
+
+.task-content h4 {
+  color: #1f2937;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.task-content p {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.task-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+}
+
+.priority {
+  padding: 0.125rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.priority.urgent {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.priority.high {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.priority.medium {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.priority.low {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.due-date {
+  color: #6b7280;
+}
+
+.task-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .action-btn {
-  background: #667eea;
-  color: white;
-  border: none;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border: none;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
+}
+
+.action-btn.complete {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.action-btn.edit {
+  background: #e0e7ff;
+  color: #5b21b6;
 }
 
 .action-btn:hover {
-  background: #5a6fd8;
-  transform: scale(1.1);
+  transform: translateY(-1px);
 }
 
-.comments-list {
+.quick-actions {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
 }
 
-.comment-item {
-  background: white;
+.quick-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 1rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  border-left: 3px solid #667eea;
+  text-decoration: none;
+  color: #374151;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.comment-header {
+.quick-action-btn:hover {
+  border-color: #667eea;
+  background: #f8fafc;
+}
+
+.priority-breakdown h3 {
+  color: #1f2937;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.priority-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.priority-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background: #f9fafb;
+  border-radius: 6px;
 }
 
-.comment-header strong {
-  color: #2c3e50;
+.priority-label {
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: capitalize;
 }
 
-.comment-header small {
-  color: #999;
-}
-
-.comment-text {
-  color: #666;
-  margin-bottom: 1rem;
-  line-height: 1.4;
-}
-
-.comment-actions {
-  display: flex;
-  gap: 1rem;
-}
-
-.comment-actions button {
-  background: none;
-  border: none;
-  color: #667eea;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: color 0.3s;
-}
-
-.comment-actions button:hover {
-  color: #5a6fd8;
-}
-
-.comment-actions .delete-btn {
-  color: #e74c3c;
-}
-
-.comment-actions .delete-btn:hover {
-  color: #c0392b;
+.priority-count {
+  font-weight: 600;
+  color: #374151;
 }
 
 /* Modal Styles */
@@ -1174,72 +826,48 @@ export default {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(5px);
 }
 
-.modal-content {
+.modal {
   background: white;
-  border-radius: 15px;
-  padding: 0;
+  border-radius: 12px;
+  width: 100%;
   max-width: 500px;
-  width: 90%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  animation: modalSlideIn 0.3s ease-out;
-}
-
-@keyframes modalSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-50px) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
 .modal-header {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  padding: 1.5rem;
-  border-radius: 15px 15px 0 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.modal-header h3 {
+.modal-header h2 {
+  color: #1f2937;
+  font-size: 1.25rem;
+  font-weight: 600;
   margin: 0;
-  font-size: 1.3rem;
 }
 
 .close-btn {
-  background: rgba(255, 255, 255, 0.2);
+  background: none;
   border: none;
-  color: white;
   font-size: 1.5rem;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.3s;
+  color: #6b7280;
+  padding: 0.25rem;
 }
 
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.task-form, .project-form {
-  padding: 2rem;
+.modal-body {
+  padding: 1.5rem;
 }
 
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .form-row {
@@ -1250,22 +878,26 @@ export default {
 
 .form-group label {
   display: block;
+  color: #374151;
+  font-weight: 500;
   margin-bottom: 0.5rem;
-  color: #2c3e50;
-  font-weight: 600;
+  font-size: 0.875rem;
 }
 
-.form-control {
+.form-group input,
+.form-group select,
+.form-group textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 2px solid #e9ecef;
-  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
   font-size: 1rem;
-  transition: border-color 0.3s;
-  box-sizing: border-box;
+  transition: border-color 0.2s ease;
 }
 
-.form-control:focus {
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -1275,101 +907,80 @@ export default {
   display: flex;
   gap: 1rem;
   justify-content: flex-end;
-  margin-top: 2rem;
+  margin-top: 1.5rem;
 }
 
-.secondary-btn {
-  background: #6c757d;
-  color: white;
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  border-radius: 6px;
+  font-weight: 500;
   cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s;
+  transition: background 0.2s ease;
 }
 
-.secondary-btn:hover {
-  background: #5a6268;
+.btn-secondary:hover {
+  background: #e5e7eb;
 }
 
-.primary-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* Loading Overlay */
-.loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  backdrop-filter: blur(5px);
-}
-
-.spinner {
-  width: 50px;
-  height: 50px;
-  border: 5px solid #e9ecef;
-  border-top: 5px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Toast Messages */
+/* Toast Notifications */
 .toast {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  top: 1rem;
+  right: 1rem;
   padding: 1rem 1.5rem;
   border-radius: 8px;
   color: white;
-  font-weight: 600;
-  z-index: 3000;
-  animation: toastSlideIn 0.3s ease-out;
-}
-
-@keyframes toastSlideIn {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  font-weight: 500;
+  z-index: 1100;
+  animation: slideIn 0.3s ease;
 }
 
 .toast.success {
-  background: #2ecc71;
+  background: #10b981;
 }
 
 .toast.error {
-  background: #e74c3c;
+  background: #ef4444;
 }
 
-.toast.warning {
-  background: #f39c12;
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
-.toast.info {
-  background: #3498db;
-}
+/* Icons (you can replace with your preferred icon library) */
+.icon-plus::before { content: '+'; }
+.icon-clock::before { content: '⏰'; }
+.icon-play::before { content: '▶️'; }
+.icon-check::before { content: '✅'; }
+.icon-list::before { content: '📋'; }
+.icon-inbox::before { content: '📥'; }
+.icon-edit::before { content: '✏️'; }
+.icon-x::before { content: '✕'; }
+.icon-user::before { content: '👤'; }
 
 /* Responsive Design */
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
-  .dashboard-header {
+  .dashboard {
     padding: 1rem;
   }
   
@@ -1379,80 +990,21 @@ export default {
     text-align: center;
   }
   
-  .dashboard-header h1 {
-    font-size: 1.5rem;
-  }
-  
-  .dashboard-nav {
-    padding: 1rem;
-    justify-content: flex-start;
-  }
-  
-  .dashboard-main {
-    padding: 1rem;
-  }
-  
-  .tab-content {
-    padding: 1rem;
-  }
-  
   .stats-grid {
     grid-template-columns: 1fr;
-  }
-  
-  .tasks-grid, .projects-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .section-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-  }
-  
-  .filters {
-    flex-direction: column;
   }
   
   .form-row {
     grid-template-columns: 1fr;
   }
   
-  .modal-content {
-    width: 95%;
-    margin: 1rem;
-  }
-  
   .task-item {
     flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
+    gap: 0.5rem;
   }
   
   .task-actions {
-    justify-content: center;
+    justify-content: flex-end;
   }
 }
-
-@media (max-width: 480px) {
-  .nav-tab {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-  }
-  
-  .stat-card {
-    padding: 1rem;
-  }
-  
-  .stat-icon {
-    font-size: 2rem;
-  }
-  
-  .stat-info h3 {
-    font-size: 1.5rem;
-  }
-  
-  .task-card, .project-card {
-    padding: 1rem;
-  }
-}</style>
+</style>
