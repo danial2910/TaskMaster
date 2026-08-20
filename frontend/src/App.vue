@@ -1,6 +1,10 @@
 <template>
   <div id="app">
-    <router-view />
+    <router-view v-slot="{ Component }">
+      <transition name="view" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
   </div>
 </template>
 
@@ -12,11 +16,23 @@ export default {
 
 <style>
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.view-enter-active,
+.view-leave-active {
+  transition: opacity 0.22s var(--ease), transform 0.22s var(--ease);
+}
+
+.view-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.view-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>
