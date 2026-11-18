@@ -13,7 +13,7 @@
 
       <div class="sidebar__section">Workspace</div>
       <nav class="sidebar__nav">
-        <a href="#" class="navitem is-active">
+        <button type="button" class="navitem" :class="{ 'is-active': currentView === 'overview' }" @click="currentView = 'overview'">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="3" y="3" width="7" height="9" rx="1.5" stroke="currentColor" stroke-width="2"/>
             <rect x="14" y="3" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="2"/>
@@ -21,22 +21,22 @@
             <rect x="3" y="16" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="2"/>
           </svg>
           Overview
-        </a>
-        <a href="#" class="navitem">
+        </button>
+        <button type="button" class="navitem" :class="{ 'is-active': currentView === 'tasks' }" @click="currentView = 'tasks'">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M9 11L11 13L15 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
           </svg>
           Tasks
           <span class="navitem__count">{{ totalTasks }}</span>
-        </a>
-        <a href="#" class="navitem">
+        </button>
+        <button type="button" class="navitem" :class="{ 'is-active': currentView === 'calendar' }" @click="currentView = 'calendar'">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
             <path d="M3 10H21M8 3V7M16 3V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
           Calendar
-        </a>
+        </button>
         <a href="#" class="navitem">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M6 20V14M12 20V6M18 20V10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -81,7 +81,7 @@
       <header class="topbar">
         <div>
           <p class="topbar__eyebrow">{{ currentUser?.username || 'Your' }} workspace</p>
-          <h1 class="topbar__title">Task dashboard</h1>
+          <h1 class="topbar__title">{{ currentView === 'calendar' ? 'Calendar' : currentView === 'tasks' ? 'Your tasks' : 'Task dashboard' }}</h1>
         </div>
         <div class="topbar__actions">
           <span class="pill">
@@ -99,7 +99,7 @@
 
       <div class="canvas">
         <!-- Stats -->
-        <section class="stats">
+        <section v-if="currentView === 'overview'" class="stats">
           <article class="stat">
             <p class="stat__label">Open tasks</p>
             <p class="stat__value">{{ pendingTasks }}</p>
@@ -125,8 +125,86 @@
           </article>
         </section>
 
+        <section v-if="currentView === 'calendar'" class="panel calendar-panel">
+          <header class="panel__head calendar__head">
+            <div>
+              <h2 class="panel__title">{{ calendarMonthLabel }}</h2>
+              <p class="panel__sub">Tasks with due dates appear on the calendar</p>
+            </div>
+            <div class="calendar__controls">
+              <button type="button" class="btn btn--ghost calendar__today" @click="goToToday">Today</button>
+              <button type="button" class="iconbtn" aria-label="Previous month" @click="changeCalendarMonth(-1)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="iconbtn" aria-label="Next month" @click="changeCalendarMonth(1)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </header>
+
+          <div class="calendar">
+            <div class="calendar__month">
+              <div v-for="weekday in weekdays" :key="weekday" class="calendar__weekday">{{ weekday }}</div>
+              <button
+                v-for="day in calendarDays"
+                :key="day.key"
+                type="button"
+                class="calendar__day"
+                :class="{
+                  'is-outside': !day.isCurrentMonth,
+                  'is-today': day.key === todayDateKey,
+                  'is-selected': day.key === selectedCalendarDate,
+                  'has-tasks': calendarTasksForDay(day.key).length
+                }"
+                :aria-label="`${day.accessibleLabel}, ${calendarTasksForDay(day.key).length} tasks`"
+                :aria-pressed="day.key === selectedCalendarDate"
+                @click="selectedCalendarDate = day.key"
+              >
+                <span class="calendar__day-number">{{ day.date.getDate() }}</span>
+                <span
+                  v-for="task in calendarTasksForDay(day.key).slice(0, 2)"
+                  :key="task.id"
+                  class="calendar__task"
+                  :class="'is-' + task.status"
+                  :title="task.title"
+                >{{ task.title }}</span>
+                <span v-if="calendarTasksForDay(day.key).length > 2" class="calendar__more">
+                  +{{ calendarTasksForDay(day.key).length - 2 }} more
+                </span>
+              </button>
+            </div>
+
+            <aside class="calendar__agenda">
+              <h3>{{ selectedCalendarLabel }}</h3>
+              <p class="calendar__agenda-count">
+                {{ selectedCalendarTasks.length }} {{ selectedCalendarTasks.length === 1 ? 'task' : 'tasks' }} due
+              </p>
+              <div v-if="selectedCalendarTasks.length" class="calendar__agenda-list">
+                <button
+                  v-for="task in selectedCalendarTasks"
+                  :key="task.id"
+                  type="button"
+                  class="calendar__agenda-task"
+                  @click="viewTask(task)"
+                >
+                  <span class="calendar__agenda-dot" :class="'is-' + task.status"></span>
+                  <span class="calendar__agenda-copy">
+                    <span class="calendar__agenda-title">{{ task.title }}</span>
+                    <span class="calendar__agenda-meta">{{ formatTaskTime(taskDueTime(task)) }} · {{ formatStatus(task.status) }}</span>
+                  </span>
+                </button>
+              </div>
+              <p v-else class="calendar__empty">No tasks due on this day.</p>
+            </aside>
+          </div>
+        </section>
+
         <!-- Tasks -->
-        <section class="panel">
+        <section v-if="currentView !== 'calendar'" class="panel">
           <header class="panel__head">
             <div>
               <h2 class="panel__title">Your tasks</h2>
@@ -195,7 +273,16 @@
                   <td>
                     <span class="badge" :class="'badge--' + task.priority">{{ task.priority }}</span>
                   </td>
-                  <td class="table__muted">{{ formatDate(task.due_date) }}</td>
+                  <td class="table__muted">
+                    <div class="due-cell">
+                      <span>{{ formatDueDate(task.due_date, taskDueTime(task)) }}</span>
+                      <span
+                        v-if="task.due_date"
+                        class="due-countdown"
+                        :class="{ 'is-overdue': isTaskOverdue(task) }"
+                      >{{ formatTimeRemaining(task) }}</span>
+                    </div>
+                  </td>
                   <td>
                     <div class="rowactions">
                       <button @click="viewTask(task)" class="iconbtn" title="View">
@@ -270,8 +357,7 @@
               </div>
             </div>
 
-            <div class="modal__row">
-              <div class="field">
+            <div class="field">
                 <label for="priority">Priority</label>
                 <div class="field__control">
                   <select v-model="newTask.priority" id="priority">
@@ -283,12 +369,19 @@
                     <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </div>
-              </div>
+            </div>
 
+            <div class="modal__row">
               <div class="field">
                 <label for="due_date">Due date</label>
                 <div class="field__control">
                   <input v-model="newTask.due_date" type="date" id="due_date" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="due_time">Due time</label>
+                <div class="field__control">
+                  <input v-model="newTask.due_time" type="time" id="due_time" :required="Boolean(newTask.due_date)" />
                 </div>
               </div>
             </div>
@@ -362,10 +455,18 @@
               </div>
             </div>
 
-            <div class="field">
-              <label for="edit-due-date">Due date</label>
-              <div class="field__control">
-                <input v-model="editTaskData.due_date" type="date" id="edit-due-date" />
+            <div class="modal__row">
+              <div class="field">
+                <label for="edit-due-date">Due date</label>
+                <div class="field__control">
+                  <input v-model="editTaskData.due_date" type="date" id="edit-due-date" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="edit-due-time">Due time</label>
+                <div class="field__control">
+                  <input v-model="editTaskData.due_time" type="time" id="edit-due-time" :required="Boolean(editTaskData.due_date)" />
+                </div>
               </div>
             </div>
 
@@ -408,7 +509,7 @@
               <dd><span class="badge" :class="'badge--' + singleTask.priority">{{ singleTask.priority }}</span></dd>
 
               <dt>Due date</dt>
-              <dd>{{ formatDate(singleTask.due_date) }}</dd>
+              <dd>{{ formatDueDate(singleTask.due_date, taskDueTime(singleTask)) }}</dd>
             </dl>
           </div>
         </div>
@@ -468,7 +569,7 @@ export default {
   data() {
     return {
       tasks: [],
-      newTask: { title: '', description: '', priority: 'medium', due_date: '' },
+      newTask: { title: '', description: '', priority: 'medium', due_date: '', due_time: '' },
       editMode: false,
       editTaskData: {},
       errorMessage: '',
@@ -481,9 +582,43 @@ export default {
       statusFilter: '',
       priorityFilter: '',
       currentUser: null,
+      currentView: 'overview',
+      calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      selectedCalendarDate: dateKey(new Date()),
+      weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      currentTime: Date.now(),
+      countdownTimer: null,
     };
   },
   computed: {
+    calendarMonthLabel() {
+      return this.calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    },
+    calendarDays() {
+      const firstDay = new Date(this.calendarMonth.getFullYear(), this.calendarMonth.getMonth(), 1);
+      const startOffset = (firstDay.getDay() + 6) % 7;
+      const gridStart = new Date(firstDay.getFullYear(), firstDay.getMonth(), 1 - startOffset);
+
+      return Array.from({ length: 42 }, (_, index) => {
+        const date = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index);
+        return {
+          date,
+          key: dateKey(date),
+          isCurrentMonth: date.getMonth() === this.calendarMonth.getMonth(),
+          accessibleLabel: date.toLocaleDateString('en-US', { dateStyle: 'full' }),
+        };
+      });
+    },
+    todayDateKey() {
+      return dateKey(new Date());
+    },
+    selectedCalendarLabel() {
+      const date = new Date(`${this.selectedCalendarDate}T00:00:00`);
+      return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    },
+    selectedCalendarTasks() {
+      return this.calendarTasksForDay(this.selectedCalendarDate);
+    },
     filteredTasks() {
       let filtered = this.tasks;
 
@@ -580,18 +715,23 @@ export default {
       this.isLoading = true;
       try {
         const token = localStorage.getItem('jwt_token');
+        const taskPayload = {
+          ...this.newTask,
+          due_date: this.newTask.due_date || null,
+          due_time: this.newTask.due_date ? this.newTask.due_time || null : null,
+        };
         const res = await fetch('http://localhost:8000/api/tasks', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(this.newTask)
+          body: JSON.stringify(taskPayload)
         });
         const data = await res.json();
         if (res.ok) {
           this.showSuccess(data.message || 'Task created successfully');
-          this.newTask = { title: '', description: '', priority: 'medium', due_date: '' };
+          this.newTask = { title: '', description: '', priority: 'medium', due_date: '', due_time: '' };
           this.showAddModal = false;
           this.fetchTasks();
         } else {
@@ -605,19 +745,28 @@ export default {
     },
     editTask(task) {
       this.editMode = true;
-      this.editTaskData = { ...task };
+      this.editTaskData = {
+        ...task,
+        due_date: this.datePart(task.due_date),
+        due_time: this.timePart(this.taskDueTime(task)),
+      };
     },
     async saveEdit() {
       this.isLoading = true;
       try {
         const token = localStorage.getItem('jwt_token');
+        const taskPayload = {
+          ...this.editTaskData,
+          due_date: this.editTaskData.due_date || null,
+          due_time: this.editTaskData.due_date ? this.editTaskData.due_time || null : null,
+        };
         const res = await fetch(`http://localhost:8000/api/tasks/${this.editTaskData.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(this.editTaskData)
+          body: JSON.stringify(taskPayload)
         });
         const data = await res.json();
         if (res.ok) {
@@ -659,6 +808,21 @@ export default {
     viewTask(task) {
       this.singleTask = task;
     },
+    calendarTasksForDay(dayKey) {
+      return this.tasks.filter(task => this.datePart(task.due_date) === dayKey);
+    },
+    changeCalendarMonth(offset) {
+      const month = new Date(this.calendarMonth.getFullYear(), this.calendarMonth.getMonth() + offset, 1);
+      const selectedDay = new Date(`${this.selectedCalendarDate}T00:00:00`).getDate();
+      const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+      this.calendarMonth = month;
+      this.selectedCalendarDate = dateKey(new Date(month.getFullYear(), month.getMonth(), Math.min(selectedDay, lastDay)));
+    },
+    goToToday() {
+      const today = new Date();
+      this.calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      this.selectedCalendarDate = dateKey(today);
+    },
     confirmDelete(task) {
       this.taskToDelete = task;
       this.showDeleteModal = true;
@@ -673,7 +837,7 @@ export default {
     },
     closeModal() {
       this.showAddModal = false;
-      this.newTask = { title: '', description: '', priority: 'medium', due_date: '' };
+      this.newTask = { title: '', description: '', priority: 'medium', due_date: '', due_time: '' };
     },
     closeSingleTask() {
       this.singleTask = null;
@@ -683,11 +847,68 @@ export default {
     },
     formatDate(date) {
       if (!date) return 'No due date';
-      return new Date(date).toLocaleDateString('en-US', {
+      const parsed = new Date(`${this.datePart(date)}T00:00:00`);
+      return parsed.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
       });
+    },
+    datePart(value) {
+      return value ? String(value).slice(0, 10) : '';
+    },
+    timePart(value) {
+      const match = value && String(value).match(/(?:[T ]|^)(\d{2}:\d{2})/);
+      return match ? match[1] : '';
+    },
+    taskDueTime(task) {
+      return task.due_time || this.timePart(task.due_date);
+    },
+    formatTaskTime(value) {
+      const time = this.timePart(value);
+      if (!time) return 'No time set';
+      const [hours, minutes] = time.split(':').map(Number);
+      const date = new Date(2000, 0, 1, hours, minutes);
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    },
+    formatDueDate(value, dueTime) {
+      if (!value) return 'No due date';
+      return dueTime ? `${this.formatDate(value)} · ${this.formatTaskTime(dueTime)}` : this.formatDate(value);
+    },
+    taskDueTimestamp(task) {
+      if (!task.due_date) return null;
+      const time = this.taskDueTime(task);
+      if (!time) return null;
+      const timestamp = new Date(`${this.datePart(task.due_date)}T${time.slice(0, 5)}:00`).getTime();
+      return Number.isNaN(timestamp) ? null : timestamp;
+    },
+    isTaskOverdue(task) {
+      if (task.status === 'completed') return false;
+      if (!this.taskDueTime(task)) return false;
+      const dueTimestamp = this.taskDueTimestamp(task);
+      return dueTimestamp !== null && dueTimestamp < this.currentTime;
+    },
+    formatTimeRemaining(task) {
+      if (task.status === 'completed') return 'Completed';
+      if (!this.taskDueTime(task)) return 'Due time not saved';
+      const dueTimestamp = this.taskDueTimestamp(task);
+      if (dueTimestamp === null) return '';
+
+      const difference = dueTimestamp - this.currentTime;
+      if (difference < 0 && difference > -60000) return 'Overdue just now';
+      if (difference >= 0 && difference < 60000) return 'Due now';
+
+      const totalMinutes = Math.floor(Math.abs(difference) / 60000);
+      const days = Math.floor(totalMinutes / 1440);
+      const hours = Math.floor((totalMinutes % 1440) / 60);
+      const minutes = totalMinutes % 60;
+      const duration = [
+        days ? `${days}d` : '',
+        hours ? `${hours}h` : '',
+        minutes || (!days && !hours) ? `${minutes}m` : '',
+      ].filter(Boolean).join(' ');
+
+      return difference < 0 ? `Overdue by ${duration}` : `Due in ${duration}`;
     },
     formatStatus(status) {
       return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -714,13 +935,28 @@ export default {
   },
   mounted() {
     this.fetchTasks();
+    this.countdownTimer = setInterval(() => {
+      this.currentTime = Date.now();
+    }, 60000);
     // Get current user info
     const userInfo = localStorage.getItem('user_info');
     if (userInfo) {
       this.currentUser = JSON.parse(userInfo);
     }
+  },
+  beforeUnmount() {
+    if (this.countdownTimer) {
+      clearInterval(this.countdownTimer);
+    }
   }
 };
+
+function dateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 </script>
 
 <style scoped>
@@ -1186,6 +1422,19 @@ export default {
 .table__right { text-align: right; }
 .table__muted { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
 
+.due-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.due-countdown {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.due-countdown.is-overdue { color: var(--rose); }
+
 .task {
   display: flex;
   align-items: flex-start;
@@ -1418,6 +1667,176 @@ export default {
   overflow-wrap: anywhere;
 }
 
+/* -------------------------------------------------- calendar */
+
+.calendar-panel { overflow: visible; }
+
+.calendar__head { border-bottom: 1px solid var(--border-soft); }
+
+.calendar__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calendar__today {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.calendar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+}
+
+.calendar__month {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding: 12px;
+}
+
+.calendar__weekday {
+  padding: 8px 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.calendar__day {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  min-height: 106px;
+  padding: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: transparent;
+  text-align: left;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+
+.calendar__day:hover { background: var(--surface-hover); }
+
+.calendar__day.is-outside { opacity: 0.42; }
+
+.calendar__day.is-today .calendar__day-number {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.calendar__day.is-selected {
+  border-color: var(--accent-vivid);
+  background: var(--accent-soft);
+}
+
+.calendar__day-number {
+  display: grid;
+  place-items: center;
+  align-self: flex-start;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.calendar__task,
+.calendar__more {
+  overflow: hidden;
+  padding: 3px 5px;
+  border-radius: 5px;
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar__task.is-pending { background: rgba(251, 191, 36, 0.12); color: var(--amber); }
+.calendar__task.is-in_progress { background: rgba(147, 197, 253, 0.12); color: var(--blue); }
+.calendar__task.is-completed { background: rgba(110, 231, 183, 0.12); color: var(--mint); }
+.calendar__more { color: var(--text-dim); }
+
+.calendar__agenda {
+  min-width: 0;
+  padding: 20px;
+  border-left: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.calendar__agenda h3 {
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.calendar__agenda-count,
+.calendar__empty {
+  margin: 5px 0 16px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.calendar__agenda-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calendar__agenda-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: left;
+}
+
+.calendar__agenda-task:hover {
+  border-color: var(--border);
+  background: var(--surface-hover);
+}
+
+.calendar__agenda-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+}
+
+.calendar__agenda-dot.is-pending { background: var(--amber); }
+.calendar__agenda-dot.is-in_progress { background: var(--blue); }
+.calendar__agenda-dot.is-completed { background: var(--mint); }
+
+.calendar__agenda-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.calendar__agenda-title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar__agenda-meta {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
 .confirm {
   align-items: center;
   text-align: center;
@@ -1464,6 +1883,8 @@ export default {
 
 @media (max-width: 860px) {
   .shell { grid-template-columns: 1fr; }
+  .calendar { grid-template-columns: 1fr; }
+  .calendar__agenda { border-top: 1px solid var(--border-soft); border-left: 0; }
 
   .sidebar {
     position: static;
@@ -1503,5 +1924,10 @@ export default {
   .stats { grid-template-columns: 1fr; }
   .modal__row { grid-template-columns: 1fr; }
   .topbar { flex-direction: column; align-items: flex-start; }
+  .calendar__month { padding: 6px; }
+  .calendar__day { min-height: 68px; padding: 4px; gap: 2px; }
+  .calendar__day-number { width: 22px; height: 22px; }
+  .calendar__task { font-size: 9px; }
+  .calendar__more { display: none; }
 }
 </style>

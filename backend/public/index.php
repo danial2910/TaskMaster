@@ -110,7 +110,7 @@ $app->group('/api', function (RouteCollectorProxy $group) {
         $data = json_decode($request->getBody()->getContents(), true);
         $result = $controller->store($user->sub, $data);
         $response->getBody()->write(json_encode($result));
-        return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
+        return $response->withStatus(isset($result['error']) ? 400 : 201)->withHeader('Content-Type', 'application/json');
     });
 
     $group->put('/tasks/{id}', function (Request $request, Response $response, array $args) {
@@ -121,7 +121,7 @@ $app->group('/api', function (RouteCollectorProxy $group) {
         $data = json_decode($request->getBody()->getContents(), true);
         $result = $controller->update($user->sub, $id, $data);
         $response->getBody()->write(json_encode($result));
-        return $response->withStatus(200)->withHeader('Content-Type', 'application/json');
+        return $response->withStatus(isset($result['error']) ? 400 : 200)->withHeader('Content-Type', 'application/json');
     });
 
     $group->put('/tasks/{id}/status', function (Request $request, Response $response, array $args) {
